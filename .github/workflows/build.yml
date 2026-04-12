@@ -37,18 +37,28 @@ jobs:
         run: |
           echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> $GITHUB_ENV
           echo "/usr/lib/jvm/java-17-openjdk-amd64/bin" >> $GITHUB_PATH
-          java -version
 
       - name: Install Python build tools
         run: |
           pip install --upgrade pip setuptools
           pip install buildozer==1.5.0 cython==3.0.11
 
+      - name: Accept all Android SDK licenses
+        run: |
+          mkdir -p ~/.android
+          touch ~/.android/repositories.cfg
+          # Pre-accept all SDK licenses so buildozer doesn't hang on prompts
+          mkdir -p ~/.buildozer/android/platform/android-sdk/licenses
+          echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
+          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
+          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" >> ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
+          echo "84831b9409646a918e30573bab4c9c91346d8abd" > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-preview-license
+
       - name: Cache buildozer global directory
         uses: actions/cache@v4
         with:
           path: ~/.buildozer
-          key: buildozer-global-${{ hashFiles('buildozer.spec') }}-v2
+          key: buildozer-global-${{ hashFiles('buildozer.spec') }}-v3
           restore-keys: |
             buildozer-global-
 
@@ -56,24 +66,16 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .buildozer
-          key: buildozer-local-${{ hashFiles('buildozer.spec') }}-v2
+          key: buildozer-local-${{ hashFiles('buildozer.spec') }}-v3
           restore-keys: |
             buildozer-local-
 
       - name: Build APK
         run: |
-          buildozer -v android debug 2>&1 | tee build.log
-          echo "=== Build exit code: $? ==="
-
-      - name: Find APK (search entire workspace)
-        if: always()
-        run: |
-          echo "=== Searching for APK files ==="
-          find . -name "*.apk" 2>/dev/null || echo "No APK found anywhere"
-          echo "=== bin/ directory contents ==="
-          ls -la bin/ 2>/dev/null || echo "bin/ does not exist"
-          echo "=== Last 100 lines of build log ==="
-          tail -100 build.log 2>/dev/null || echo "No build log"
+          # Also accept licenses via sdkmanager during build
+          yes | buildozer -v android debug 2>&1 | tee build.log || true
+          echo "=== Searching for APK ==="
+          find . -name "*.apk" 2>/dev/null || echo "No APK found"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
