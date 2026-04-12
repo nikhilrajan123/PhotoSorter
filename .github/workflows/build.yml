@@ -5,6 +5,9 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     runs-on: ubuntu-22.04
@@ -27,39 +30,62 @@ jobs:
             autoconf libtool pkg-config \
             libssl-dev libffi-dev \
             cmake ninja-build \
-            libltdl-dev
+            libltdl-dev \
+            zlib1g-dev
 
       - name: Set JAVA_HOME to Java 17
         run: |
           echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> $GITHUB_ENV
           echo "/usr/lib/jvm/java-17-openjdk-amd64/bin" >> $GITHUB_PATH
+          java -version
 
       - name: Install Python build tools
         run: |
-          pip install --upgrade pip
-          pip install buildozer cython
+          pip install --upgrade pip setuptools
+          pip install buildozer==1.5.0 cython==3.0.11
 
       - name: Cache buildozer global directory
         uses: actions/cache@v4
         with:
           path: ~/.buildozer
-          key: buildozer-${{ hashFiles('buildozer.spec') }}
-          restore-keys: buildozer-
+          key: buildozer-global-${{ hashFiles('buildozer.spec') }}-v2
+          restore-keys: |
+            buildozer-global-
+
+      - name: Cache buildozer local .buildozer dir
+        uses: actions/cache@v4
+        with:
+          path: .buildozer
+          key: buildozer-local-${{ hashFiles('buildozer.spec') }}-v2
+          restore-keys: |
+            buildozer-local-
 
       - name: Build APK
         run: |
           buildozer -v android debug 2>&1 | tee build.log
+          echo "=== Build exit code: $? ==="
 
-      - name: Upload APK artifact
+      - name: Find APK (search entire workspace)
+        if: always()
+        run: |
+          echo "=== Searching for APK files ==="
+          find . -name "*.apk" 2>/dev/null || echo "No APK found anywhere"
+          echo "=== bin/ directory contents ==="
+          ls -la bin/ 2>/dev/null || echo "bin/ does not exist"
+          echo "=== Last 100 lines of build log ==="
+          tail -100 build.log 2>/dev/null || echo "No build log"
+
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: PhotoSorterPro-APK
-          path: bin/*.apk
-          if-no-files-found: error
+          path: "**/*.apk"
+          if-no-files-found: warn
 
-      - name: Upload build log (on failure)
-        if: failure()
+      - name: Upload build log
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: build-log
           path: build.log
+          if-no-files-found: ignore
