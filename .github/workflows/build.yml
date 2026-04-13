@@ -23,7 +23,7 @@ jobs:
         run: |
           sudo apt-get update -q
           sudo apt-get install -y \
-            git zip unzip openjdk-17-jdk \
+            git zip unzip wget openjdk-17-jdk \
             autoconf libtool pkg-config \
             libssl-dev libffi-dev cmake \
             ninja-build libltdl-dev zlib1g-dev
@@ -33,18 +33,39 @@ jobs:
           echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> $GITHUB_ENV
           echo "/usr/lib/jvm/java-17-openjdk-amd64/bin" >> $GITHUB_PATH
 
-      - name: Install buildozer
-        run: pip install --upgrade pip && pip install buildozer==1.5.0 cython==3.0.11
-
-      - name: Pre-accept Android SDK licenses
+      - name: Install Android SDK command-line tools manually
         run: |
-          mkdir -p ~/.buildozer/android/platform/android-sdk/licenses
-          printf "8933bad161af4178b1185d1a37fbf41ea5269c55\nd56f5187479451eabf01fb78af6dfcb131a6481e\n24333f8a63b6825ea9c5514f83c2829b004d1fee" \
-            > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
-          printf "84831b9409646a918e30573bab4c9c91346d8abd" \
-            > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-preview-license
-          printf "33b6937a2816f81cbf0f9bc3d22cd42716c50d7" \
-            > ~/.buildozer/android/platform/android-sdk/licenses/android-googletv-license
+          # Download latest Android cmdline-tools (contains sdkmanager)
+          mkdir -p ~/.buildozer/android/platform/android-sdk/cmdline-tools
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip \
+               -O /tmp/cmdtools.zip
+          unzip -q /tmp/cmdtools.zip -d /tmp/cmdtools
+          mv /tmp/cmdtools/cmdline-tools \
+             ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest
+
+          # Also create the OLD path buildozer 1.5 looks for: tools/bin/sdkmanager
+          mkdir -p ~/.buildozer/android/platform/android-sdk/tools/bin
+          ln -sf \
+            ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager \
+            ~/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
+
+          export ANDROID_SDK_ROOT=~/.buildozer/android/platform/android-sdk
+          export PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH
+
+          # Accept all licenses
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+
+          # Install required SDK components
+          sdkmanager \
+            "platform-tools" \
+            "build-tools;34.0.0" \
+            "platforms;android-34" \
+            "platforms;android-33" 2>&1 | tail -5
+
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+
+      - name: Install buildozer + cython
+        run: pip install --upgrade pip && pip install buildozer==1.5.0 cython==3.0.11
 
       - name: Cache buildozer
         uses: actions/cache@v4
@@ -52,19 +73,20 @@ jobs:
           path: |
             ~/.buildozer
             .buildozer
-          key: buildozer-${{ hashFiles('buildozer.spec') }}-v5
+          key: buildozer-${{ hashFiles('buildozer.spec') }}-v6
           restore-keys: buildozer-
 
       - name: Build APK
-        run: yes | buildozer -v android debug 2>&1 | tee build.log || true
+        run: |
+          yes | buildozer -v android debug 2>&1 | tee build.log || true
 
       - name: Find APK
         if: always()
         run: |
-          echo "=== APK files found ==="
-          find . -name "*.apk" 2>/dev/null || echo "NONE"
-          echo "=== Last 60 lines of build log ==="
-          tail -60 build.log
+          echo "=== APK files ==="
+          find . -name "*.apk" 2>/dev/null || echo "None found"
+          echo "=== Last 50 lines of build log ==="
+          tail -50 build.log
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
