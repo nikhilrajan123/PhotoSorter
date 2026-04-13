@@ -3,29 +3,47 @@ title = PhotoSorter Pro
 package.name = photosorter
 package.domain = org.photosorter
 source.dir = .
-source.include_exts = py,png,jpg,kv,atlas
-version = 1.0
+source.include_exts = py,kv,atlas
+version = 1.1
 
-# Python requirements — all the libraries your app needs
-requirements = python3,kivy==2.3.0,pillow,pillow-heif,requests,piexif
+# ── Python requirements ───────────────────────────────────────────────
+# Keep minimal — pillow-heif and piexif can be installed at runtime
+requirements = python3,kivy==2.3.0,pillow,requests
 
-# Android orientation
+# ── Orientation ───────────────────────────────────────────────────────
 orientation = portrait
+fullscreen = 0
 
-# Android permissions
-android.permissions = READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE,MANAGE_EXTERNAL_STORAGE,INTERNET
-
-# Target Android version
-android.api = 33
+# ── Android API targets ───────────────────────────────────────────────
+# api=34 (Android 14) removes Play Protect "old version" warning
+android.api = 34
 android.minapi = 26
 android.ndk = 25b
-android.sdk = 33
+android.sdk = 34
 
-# Architecture (arm64 covers all modern Android phones including Samsung S24)
+# ── Architecture ──────────────────────────────────────────────────────
 android.archs = arm64-v8a
 
-# Allow writing to SD card / external storage
+# ── Permissions ───────────────────────────────────────────────────────
+# Android 13+ (API 33+) replaced READ_EXTERNAL_STORAGE with granular media perms
+# MANAGE_EXTERNAL_STORAGE = access ALL files (needed to read/write DCIM)
+android.permissions = \
+    INTERNET,\
+    READ_MEDIA_IMAGES,\
+    READ_MEDIA_VIDEO,\
+    READ_MEDIA_AUDIO,\
+    READ_EXTERNAL_STORAGE,\
+    WRITE_EXTERNAL_STORAGE,\
+    MANAGE_EXTERNAL_STORAGE
+
+# ── Android features ──────────────────────────────────────────────────
 android.allow_backup = True
+android.accept_sdk_license = True
+
+# ── Gradle / build ────────────────────────────────────────────────────
+# Force Gradle to accept all licenses non-interactively
+android.gradle_dependencies = ''
+p4a.branch = master
 
 [buildozer]
 log_level = 2
