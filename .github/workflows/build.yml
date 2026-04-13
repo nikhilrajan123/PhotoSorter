@@ -13,69 +13,58 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install system dependencies
+      - name: Install system packages
         run: |
-          sudo apt-get update
+          sudo apt-get update -q
           sudo apt-get install -y \
-            git zip unzip \
-            openjdk-17-jdk \
+            git zip unzip openjdk-17-jdk \
             autoconf libtool pkg-config \
-            libssl-dev libffi-dev \
-            cmake ninja-build \
-            libltdl-dev \
-            zlib1g-dev
+            libssl-dev libffi-dev cmake \
+            ninja-build libltdl-dev zlib1g-dev
 
-      - name: Set JAVA_HOME to Java 17
+      - name: Set Java 17
         run: |
           echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> $GITHUB_ENV
           echo "/usr/lib/jvm/java-17-openjdk-amd64/bin" >> $GITHUB_PATH
 
-      - name: Install Python build tools
-        run: |
-          pip install --upgrade pip setuptools
-          pip install buildozer==1.5.0 cython==3.0.11
+      - name: Install buildozer
+        run: pip install --upgrade pip && pip install buildozer==1.5.0 cython==3.0.11
 
-      - name: Accept all Android SDK licenses
+      - name: Pre-accept Android SDK licenses
         run: |
-          mkdir -p ~/.android
-          touch ~/.android/repositories.cfg
-          # Pre-accept all SDK licenses so buildozer doesn't hang on prompts
           mkdir -p ~/.buildozer/android/platform/android-sdk/licenses
-          echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
-          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
-          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" >> ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
-          echo "84831b9409646a918e30573bab4c9c91346d8abd" > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-preview-license
+          printf "8933bad161af4178b1185d1a37fbf41ea5269c55\nd56f5187479451eabf01fb78af6dfcb131a6481e\n24333f8a63b6825ea9c5514f83c2829b004d1fee" \
+            > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
+          printf "84831b9409646a918e30573bab4c9c91346d8abd" \
+            > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-preview-license
+          printf "33b6937a2816f81cbf0f9bc3d22cd42716c50d7" \
+            > ~/.buildozer/android/platform/android-sdk/licenses/android-googletv-license
 
-      - name: Cache buildozer global directory
+      - name: Cache buildozer
         uses: actions/cache@v4
         with:
-          path: ~/.buildozer
-          key: buildozer-global-${{ hashFiles('buildozer.spec') }}-v3
-          restore-keys: |
-            buildozer-global-
-
-      - name: Cache buildozer local .buildozer dir
-        uses: actions/cache@v4
-        with:
-          path: .buildozer
-          key: buildozer-local-${{ hashFiles('buildozer.spec') }}-v3
-          restore-keys: |
-            buildozer-local-
+          path: |
+            ~/.buildozer
+            .buildozer
+          key: buildozer-${{ hashFiles('buildozer.spec') }}-v5
+          restore-keys: buildozer-
 
       - name: Build APK
+        run: yes | buildozer -v android debug 2>&1 | tee build.log || true
+
+      - name: Find APK
+        if: always()
         run: |
-          # Also accept licenses via sdkmanager during build
-          yes | buildozer -v android debug 2>&1 | tee build.log || true
-          echo "=== Searching for APK ==="
-          find . -name "*.apk" 2>/dev/null || echo "No APK found"
+          echo "=== APK files found ==="
+          find . -name "*.apk" 2>/dev/null || echo "NONE"
+          echo "=== Last 60 lines of build log ==="
+          tail -60 build.log
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
