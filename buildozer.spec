@@ -19,7 +19,6 @@ fullscreen = 0
 android.api = 34
 android.minapi = 26
 android.ndk = 25b
-android.sdk = 34
 
 # ── Architecture ──────────────────────────────────────────────────────
 android.archs = arm64-v8a
@@ -43,8 +42,6 @@ android.accept_sdk_license = True
 # ── Gradle / build ────────────────────────────────────────────────────
 # Force Gradle to accept all licenses non-interactively
 android.gradle_dependencies = ''
-p4a.branch = master
-
 [buildozer]
 log_level = 2
 warn_on_root = 1
